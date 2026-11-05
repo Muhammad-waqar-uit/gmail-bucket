@@ -1,0 +1,30 @@
+{
+  "name": "gmail-bucket",
+  "version": "1.0.0",
+  "description": "Use a Gmail account as a tiny S3-style object store. Demo and MVP use only.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": { "gmail-bucket": "dist/cli.js" },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "npm run build",
+    "auth": "node dist/cli.js auth",
+    "serve": "node dist/cli.js serve"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": { "googleapis": "^144.0.0" },
+  "devDependencies": { "@types/node": "^20.14.0", "typescript": "^5.5.0" },
+  "license": "MIT",
+  "keywords": ["gmail", "s3", "object-store", "storage", "backup", "mvp"],
+  "author": { "name": "Muhammad Waqar" },
+  "homepage": "https://github.com/muhammad-waqar-uit/gmail-bucket",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muhammad-waqar-uit/gmail-bucket.git"
+  },
+  "bugs": {
+    "url": "https://github.com/muhammad-waqar-uit/gmail-bucket/issues"
+  }
+}
