@@ -1,6 +1,16 @@
 # gmail-bucket
 
+[![npm version](https://img.shields.io/npm/v/gmail-bucket.svg)](https://www.npmjs.com/package/gmail-bucket)
+[![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Use a Gmail account as a tiny S3-style object store. For demos and MVPs only.
+
+## Install
+
+```bash
+npm install gmail-bucket
+```
 
 ## How it works
 
