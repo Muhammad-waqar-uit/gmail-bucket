@@ -1,15 +1,24 @@
 {
   "name": "gmail-bucket",
-  "version": "1.0.0",
-  "description": "Use a Gmail account as a tiny S3-style object store. Demo and MVP use only.",
+  "version": "2.0.0",
+  "description": "Use Google Drive or Gmail as a tiny S3-style object store: a base folder, buckets as folders, nested keys. Demo and MVP use only.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "bin": { "gmail-bucket": "dist/cli.js" },
-  "files": ["dist", "README.md"],
+  "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "prepack": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "test:drive": "npm run build && node test/drive-mock-test.mjs",
     "auth": "node dist/cli.js auth",
     "serve": "node dist/cli.js serve"
   },
@@ -17,7 +26,16 @@
   "dependencies": { "googleapis": "^144.0.0" },
   "devDependencies": { "@types/node": "^20.14.0", "typescript": "^5.5.0" },
   "license": "MIT",
-  "keywords": ["gmail", "s3", "object-store", "storage", "backup", "mvp"],
+  "keywords": [
+    "gmail",
+    "google-drive",
+    "s3",
+    "object-store",
+    "file-storage",
+    "storage",
+    "backup",
+    "mvp"
+  ],
   "author": { "name": "Muhammad Waqar" },
   "homepage": "https://github.com/muhammad-waqar-uit/gmail-bucket",
   "repository": {
