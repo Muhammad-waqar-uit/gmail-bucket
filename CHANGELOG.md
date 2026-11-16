@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.2.0
+
+### Added
+
+- `ObjectStore.moveObject(from, to)` — move or rename an object, including between buckets and to/from the
+  base (`_root`). Implemented for all three backends: Drive reparents the file and prunes empty folders,
+  Gmail relabels (same key) or rewrites the object (new key), memory moves the entry.
+- `PATCH /api/buckets/:bucket/objects/:key` with `{ bucket?, key? }` to move/rename over HTTP;
+  returns the moved object's `ObjectInfo`.
+- `ObjectRef` type exported for the `from`/`to` arguments.
+
 ## 2.1.0
 
 ### Added

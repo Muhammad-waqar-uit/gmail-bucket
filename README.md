@@ -117,6 +117,7 @@ interface ObjectStore {
   getObject(bucket: string, key: string): Promise<{ body: Buffer; info: ObjectInfo }>;
   headObject(bucket: string, key: string): Promise<ObjectInfo>;
   deleteObject(bucket: string, key: string): Promise<void>;
+  moveObject(from: ObjectRef, to: ObjectRef): Promise<ObjectInfo>;
   listObjects(bucket: string, opts?: { prefix?: string; limit?: number }): Promise<ObjectInfo[]>;
 }
 
@@ -133,7 +134,12 @@ interface StoreInfo {
 }
 ```
 
-Implement these nine methods to add a backend (S3, R2, local disk…) and pass it to `serve()`.
+Implement these ten methods to add a backend (S3, R2, local disk…) and pass it to `serve()`.
+
+**Move and rename** — `moveObject({ bucket, key }, { bucket, key })` works for every backend and crosses
+buckets, including the base: Drive reparents the file (`addParents`/`removeParents`) and prunes empty source
+folders, Gmail relabels when only the bucket changes and rewrites the message when the key changes, memory
+just moves the entry. The destination is overwritten when something is already there.
 
 ## REST server
 
@@ -151,6 +157,7 @@ PUT    /api/buckets/:bucket                create bucket
 DELETE /api/buckets/:bucket?force=1        delete bucket
 GET    /api/buckets/:bucket?prefix=x       list objects
 PUT    /api/buckets/:bucket/objects/:key   upload (x-meta-<name> headers -> metadata)
+PATCH  /api/buckets/:bucket/objects/:key   move/rename: { bucket?, key? }
 GET    /api/buckets/:bucket/objects/:key   download (?download=1 forces attachment)
 HEAD   /api/buckets/:bucket/objects/:key   object info
 DELETE /api/buckets/:bucket/objects/:key   delete

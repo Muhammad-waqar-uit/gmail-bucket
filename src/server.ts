@@ -28,14 +28,14 @@ export interface ServerOptions {
   token?: string;
 }
 
-function readBody(req: http.IncomingMessage): Promise<Buffer> {
+function readBody(req: http.IncomingMessage, limit = MAX_BODY): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
     req.on('data', (c: Buffer) => {
       size += c.length;
-      if (size > MAX_BODY) {
-        reject(new Error('Body too large (max 100MB)'));
+      if (size > limit) {
+        reject(new Error(limit === MAX_BODY ? 'Body too large (max 100MB)' : 'Body too large'));
         req.destroy();
         return;
       }
@@ -49,8 +49,24 @@ function readBody(req: http.IncomingMessage): Promise<Buffer> {
 function statusFor(msg: string): number {
   if (/NoSuchBucket|NoSuchKey/.test(msg)) return 404;
   if (/BucketNotEmpty|BucketExists/.test(msg)) return 409;
-  if (/Bucket names|Body too large|Invalid key|not a bucket/.test(msg)) return 400;
+  if (/Bucket names|Body too large|Invalid key|Invalid JSON|Invalid move|not a bucket/.test(msg)) return 400;
   return 500;
+}
+
+/** Small JSON body reader for control requests (move/rename). */
+async function readJson(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  const body = await readBody(req, 64 * 1024);
+  if (!body.length) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body.toString('utf8'));
+  } catch {
+    throw new Error('Invalid JSON body');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid JSON body');
+  }
+  return parsed as Record<string, unknown>;
 }
 
 function validateKey(key: string): void {
@@ -103,6 +119,7 @@ function serveStatic(root: string, pathname: string, res: http.ServerResponse): 
  *   GET    /api/buckets/:bucket?prefix=x       list objects
  *   PUT    /api/buckets/:bucket/objects/:key   upload (x-meta-<name> headers -> metadata)
  *   GET    /api/buckets/:bucket/objects/:key   download (?download=1 forces attachment)
+ *   PATCH  /api/buckets/:bucket/objects/:key   move/rename: { bucket?, key? }
  *   HEAD   /api/buckets/:bucket/objects/:key   object info
  *   DELETE /api/buckets/:bucket/objects/:key   delete
  *
@@ -218,6 +235,16 @@ export function createServer(info: StoreInfo, opts: ServerOptions = {}): http.Se
           metadata,
         });
         return send(200, r, { etag: `"${r.etag}"` });
+      }
+
+      if (req.method === 'PATCH') {
+        // Move/rename: { bucket?, key? } — omitted fields keep their current value.
+        const payload = await readJson(req);
+        const toBucket = typeof payload.bucket === 'string' && payload.bucket ? payload.bucket : bucket;
+        const toKey = typeof payload.key === 'string' && payload.key ? payload.key : key;
+        validateKey(toKey);
+        const moved = await store.moveObject({ bucket, key }, { bucket: toBucket, key: toKey });
+        return send(200, moved);
       }
 
       if (req.method === 'HEAD') {

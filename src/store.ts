@@ -8,6 +8,12 @@ import { getAuthedClient, hasCredentials, hasToken, credFile, tokenFile } from '
 export type { ObjectInfo, PutOptions };
 export { BASE_BUCKET };
 
+/** Address of one object: a bucket (or _root) plus its key. */
+export interface ObjectRef {
+  bucket: string;
+  key: string;
+}
+
 export interface ObjectStore {
   createBucket(bucket: string): Promise<void>;
   listBuckets(): Promise<string[]>;
@@ -21,6 +27,8 @@ export interface ObjectStore {
   getObject(bucket: string, key: string): Promise<{ body: Buffer; info: ObjectInfo }>;
   headObject(bucket: string, key: string): Promise<ObjectInfo>;
   deleteObject(bucket: string, key: string): Promise<void>;
+  /** Move or rename an object, across buckets too. Overwrites the destination. */
+  moveObject(from: ObjectRef, to: ObjectRef): Promise<ObjectInfo>;
   listObjects(bucket: string, opts?: { prefix?: string; limit?: number }): Promise<ObjectInfo[]>;
 }
 
@@ -100,6 +108,21 @@ export class MemoryStore implements ObjectStore {
   async deleteObject(bucket: string, key: string): Promise<void> {
     const b = this.require(bucket);
     if (!b.delete(key)) throw new Error(`NoSuchKey: ${key}`);
+  }
+
+  async moveObject(from: ObjectRef, to: ObjectRef): Promise<ObjectInfo> {
+    if (from.bucket === to.bucket && from.key === to.key) {
+      throw new Error('Invalid move: source and target are the same');
+    }
+    const src = this.require(from.bucket);
+    const obj = src.get(from.key);
+    if (!obj) throw new Error(`NoSuchKey: ${from.key}`);
+
+    const dst = this.require(to.bucket);
+    src.delete(from.key);
+    const info = { ...obj.info, key: to.key, lastModified: new Date() };
+    dst.set(to.key, { body: obj.body, info });
+    return info;
   }
 
   async listObjects(bucket: string, opts: { prefix?: string; limit?: number } = {}): Promise<ObjectInfo[]> {

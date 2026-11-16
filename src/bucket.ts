@@ -2,6 +2,7 @@ import { google, gmail_v1 } from 'googleapis';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import { BASE_BUCKET, assertBucketName } from './layout.js';
+import type { ObjectRef } from './store.js';
 
 type Auth = InstanceType<typeof google.auth.OAuth2>;
 
@@ -273,6 +274,39 @@ export class GmailBucket {
     const labelId = await this.requireLabel(bucket);
     const all = await this.findAll(labelId, key);
     await this.trash(all.map((m) => m.id));
+  }
+
+  async moveObject(from: ObjectRef, to: ObjectRef): Promise<ObjectInfo> {
+    if (from.bucket === to.bucket && from.key === to.key) {
+      throw new Error('Invalid move: source and target are the same');
+    }
+    const fromLabel = await this.requireLabel(from.bucket);
+    const toLabel = await this.requireLabel(to.bucket);
+    const parts = await this.findLatestUpload(fromLabel, from.key);
+
+    // Same key, different bucket: relabel the existing messages (keeps message ids).
+    if (from.key === to.key) {
+      await retry(() =>
+        this.gmail.users.messages.batchModify({
+          userId: 'me',
+          requestBody: {
+            ids: parts.map((p) => p.id),
+            addLabelIds: [toLabel],
+            removeLabelIds: [fromLabel],
+          },
+        })
+      );
+      return { ...this.toInfo(parts[0]), key: to.key, lastModified: new Date() };
+    }
+
+    // A rename has to rewrite the messages, because the key lives in the headers.
+    const { body, info } = await this.getObject(from.bucket, from.key);
+    const put = await this.putObject(to.bucket, to.key, body, {
+      contentType: info.contentType,
+      metadata: info.metadata,
+    });
+    await this.deleteObject(from.bucket, from.key);
+    return { ...info, key: to.key, size: put.size, etag: put.etag, lastModified: new Date() };
   }
 
   async listObjects(bucket: string, opts: { prefix?: string; limit?: number } = {}): Promise<ObjectInfo[]> {

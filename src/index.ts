@@ -5,7 +5,7 @@ export { DriveStore } from './drive.js';
 export type { DriveStoreOptions, BaseFolder } from './drive.js';
 
 export { MemoryStore, createStore, BASE_BUCKET } from './store.js';
-export type { ObjectStore, StoreInfo, StoreMode } from './store.js';
+export type { ObjectRef, ObjectStore, StoreInfo, StoreMode } from './store.js';
 
 export { assertBucketName, BUCKET_RE } from './layout.js';
 

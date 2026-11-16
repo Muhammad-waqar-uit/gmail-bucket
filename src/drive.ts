@@ -2,7 +2,7 @@ import { google, drive_v3 } from 'googleapis';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import { BASE_BUCKET, assertBucketName } from './layout.js';
-import type { ObjectInfo, ObjectStore, PutOptions } from './store.js';
+import type { ObjectInfo, ObjectRef, ObjectStore, PutOptions } from './store.js';
 
 type Auth = InstanceType<typeof google.auth.OAuth2>;
 
@@ -177,29 +177,62 @@ export class DriveStore implements ObjectStore {
   }
 
   async deleteObject(bucket: string, key: string): Promise<void> {
-    const folder = await this.bucketFolder(bucket, false);
-    const segs = key.split('/');
+    const { file } = await this.findObject(bucket, key);
+    await this.drive.files.update({ fileId: file.id!, requestBody: { trashed: true } });
+    await this.pruneEmptyParents(bucket, key);
+  }
+
+  async moveObject(from: ObjectRef, to: ObjectRef): Promise<ObjectInfo> {
+    if (from.bucket === to.bucket && from.key === to.key) {
+      throw new Error('Invalid move: source and target are the same');
+    }
+    const { file } = await this.findObject(from.bucket, from.key);
+    // The destination bucket must exist; only folders inside it are created.
+    const targetFolder = await this.bucketFolder(to.bucket, false);
+
+    const segs = to.key.split('/');
     const name = segs.pop() ?? '';
     if (!name) throw new Error('Invalid key');
+    const parent = await this.ensureFolders(targetFolder, segs);
 
-    // Remember the folder chain so empty folders can be pruned afterwards.
-    const chain: { parentId: string; id: string }[] = [];
-    let parent = folder;
+    // Overwrite whatever already sits at the destination.
+    const existing = await this.findFile(parent, name);
+    if (existing && existing.id !== file.id) {
+      await this.drive.files.update({ fileId: existing.id!, requestBody: { trashed: true } });
+    }
+
+    const parents = file.parents ?? [];
+    const reparent = !(parents.length === 1 && parents[0] === parent);
+    await this.drive.files.update({
+      fileId: file.id!,
+      requestBody: { name },
+      fields: FILE_FIELDS,
+      ...(reparent ? { addParents: parent, removeParents: parents.join(',') } : {}),
+    });
+
+    await this.pruneEmptyParents(from.bucket, from.key);
+    this.folderCache.clear();
+
+    return this.headObject(to.bucket, to.key);
+  }
+
+  /** Trash folders left empty by removing `key` (never the bucket folder itself). */
+  private async pruneEmptyParents(bucket: string, key: string): Promise<void> {
+    let parent = await this.bucketFolder(bucket, false);
+    const segs = key.split('/');
+    segs.pop();
+
+    const chain: string[] = [];
     for (const seg of segs) {
       const id = await this.findFolder(parent, seg);
-      if (!id) throw new Error(`NoSuchKey: ${key}`);
-      chain.push({ parentId: parent, id });
+      if (!id) return;
+      chain.push(id);
       parent = id;
     }
-    const file = await this.findFile(parent, name);
-    if (!file) throw new Error(`NoSuchKey: ${key}`);
-    await this.drive.files.update({ fileId: file.id!, requestBody: { trashed: true } });
-
-    // Drive keeps folders, so drop any that are now empty (never the bucket itself).
-    for (const entry of chain.reverse()) {
-      const children = await this.list(`'${entry.id}' in parents and trashed=false`);
+    for (const id of chain.reverse()) {
+      const children = await this.list(`'${id}' in parents and trashed=false`);
       if (children.length) break;
-      await this.drive.files.update({ fileId: entry.id, requestBody: { trashed: true } });
+      await this.drive.files.update({ fileId: id, requestBody: { trashed: true } });
       this.folderCache.clear();
     }
   }

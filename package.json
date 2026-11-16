@@ -1,6 +1,6 @@
 {
   "name": "gmail-bucket",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Use Google Drive or Gmail as a tiny S3-style object store: a base folder, buckets as folders, nested keys. Demo and MVP use only.",
   "type": "module",
   "main": "dist/index.js",
