@@ -1,4 +1,8 @@
 node_modules
-dist
+/dist
+*.tgz
+.env
+.env.*
+!.env.example
 credentials.json
 token.json
