@@ -167,6 +167,7 @@ export function createServer(info: StoreInfo, opts: ServerOptions = {}): http.Se
           mode,
           reason,
           base,
+          baseUrl: info.baseUrl,
           baseBucket: BASE_BUCKET,
           rootLabel,
           maxUploadBytes: MAX_BODY,

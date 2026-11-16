@@ -26,6 +26,8 @@ export interface ObjectInfo {
   etag: string;
   lastModified: Date;
   metadata: Record<string, string>;
+  /** Link to the object in the provider's UI, when it has one (Drive webViewLink). */
+  url?: string;
 }
 
 export interface PutOptions {

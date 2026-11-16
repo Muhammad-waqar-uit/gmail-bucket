@@ -123,6 +123,13 @@ interface ObjectStore {
 interface ObjectInfo {
   key: string; size: number; contentType: string;
   etag: string; lastModified: Date; metadata: Record<string, string>;
+  url?: string;   // provider link, e.g. Drive webViewLink
+}
+
+interface StoreInfo {
+  store: ObjectStore; mode: 'drive' | 'gmail' | 'memory';
+  base: string; baseUrl?: string;   // link to the base folder, when there is one
+  reason: string; rootLabel: string;
 }
 ```
 
@@ -177,6 +184,10 @@ Credentials may also come from `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`, and 
 **Drive** — base folder → bucket folders → nested folders → files. Overwrites update the file in place;
 `etag` is the MD5 we computed and stored in `appProperties` (metadata JSON is kept when ≤ 120 bytes, since
 Drive caps property values). Deletes go to Trash and prune folders that end up empty.
+
+Drive objects also carry `info.url` (the file's `webViewLink`) and the selected backend exposes
+`info.baseUrl` — a link to the base folder — so apps can offer "open in Drive" without guessing URL shapes.
+Both are also returned by the REST API (`objects[].url` and `status.baseUrl`); other backends omit them.
 
 **Gmail** — a bucket is a label; an object is a message inserted straight into that label (nothing is sent,
 nothing reaches the inbox) with the identity in headers: `X-GB-Key`, `X-GB-Part`, `X-GB-Total`, `X-GB-Upload`,

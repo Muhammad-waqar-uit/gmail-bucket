@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.0
+
+### Added
+
+- `ObjectInfo.url` — provider link for an object; the Drive backend fills it from the file's
+  `webViewLink`, other backends leave it undefined.
+- `StoreInfo.baseUrl` — link to the base in the provider's UI (Drive folder), also exposed by
+  `GET /api/status` as `baseUrl` and by object listings as `objects[].url`.
+
 ## 2.0.0
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "gmail-bucket",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Use Google Drive or Gmail as a tiny S3-style object store: a base folder, buckets as folders, nested keys. Demo and MVP use only.",
   "type": "module",
   "main": "dist/index.js",
@@ -11,8 +11,14 @@
       "default": "./dist/index.js"
     }
   },
-  "bin": { "gmail-bucket": "dist/cli.js" },
-  "files": ["dist", "README.md", "LICENSE"],
+  "bin": {
+    "gmail-bucket": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "prepare": "npm run build",
@@ -22,9 +28,16 @@
     "auth": "node dist/cli.js auth",
     "serve": "node dist/cli.js serve"
   },
-  "engines": { "node": ">=18" },
-  "dependencies": { "googleapis": "^144.0.0" },
-  "devDependencies": { "@types/node": "^20.14.0", "typescript": "^5.5.0" },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "googleapis": "^144.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  },
   "license": "MIT",
   "keywords": [
     "gmail",
@@ -36,7 +49,9 @@
     "backup",
     "mvp"
   ],
-  "author": { "name": "Muhammad Waqar" },
+  "author": {
+    "name": "Muhammad Waqar"
+  },
   "homepage": "https://github.com/muhammad-waqar-uit/gmail-bucket",
   "repository": {
     "type": "git",

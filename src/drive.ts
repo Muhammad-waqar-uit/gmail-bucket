@@ -7,7 +7,8 @@ import type { ObjectInfo, ObjectStore, PutOptions } from './store.js';
 type Auth = InstanceType<typeof google.auth.OAuth2>;
 
 const FOLDER = 'application/vnd.google-apps.folder';
-const FILE_FIELDS = 'id,name,mimeType,size,md5Checksum,modifiedTime,parents,appProperties,trashed';
+const FILE_FIELDS =
+  'id,name,mimeType,size,md5Checksum,modifiedTime,parents,appProperties,trashed,webViewLink';
 const MAX_DEPTH = 12;
 
 /** Drive appProperties values are capped at ~124 bytes, so keep metadata compact. */
@@ -258,6 +259,7 @@ export class DriveStore implements ObjectStore {
       etag: file.md5Checksum ?? file.appProperties?.gbEtag ?? '',
       lastModified: new Date(file.modifiedTime ?? Date.now()),
       metadata,
+      url: file.webViewLink ?? undefined,
     };
   }
 

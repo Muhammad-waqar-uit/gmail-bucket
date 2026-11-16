@@ -118,6 +118,8 @@ export interface StoreInfo {
   mode: StoreMode;
   /** Human readable description of where the base lives. */
   base: string;
+  /** Link to the base in the provider's UI, when it has one (Drive folder). */
+  baseUrl?: string;
   reason: string;
   rootLabel: string;
 }
@@ -150,6 +152,7 @@ async function openDrive(): Promise<StoreInfo> {
     store,
     mode: 'drive',
     base: `Drive folder "${base.name}" (${base.folderId})`,
+    baseUrl: `https://drive.google.com/drive/folders/${base.folderId}`,
     reason: `Google Drive — buckets are folders inside "${base.name}"`,
     rootLabel: env('GMAIL_BUCKET_ROOT_LABEL') ?? 'gmail-bucket',
   };
