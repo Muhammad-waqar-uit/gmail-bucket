@@ -4,30 +4,72 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 
-export const DIR = process.env.GMAIL_BUCKET_DIR ?? path.join(os.homedir(), '.gmail-bucket');
-const CRED_FILE = path.join(DIR, 'credentials.json');
-const TOKEN_FILE = path.join(DIR, 'token.json');
 const PORT = 53682;
 const REDIRECT = `http://localhost:${PORT}`;
-export const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
+export const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.modify',
+  // Needed for the Drive backend: it must see a base folder you created by hand.
+  'https://www.googleapis.com/auth/drive',
+];
+
+export function dataDir(): string {
+  return process.env.GMAIL_BUCKET_DIR || path.join(os.homedir(), '.gmail-bucket');
+}
+export function credFile(): string {
+  return path.join(dataDir(), 'credentials.json');
+}
+export function tokenFile(): string {
+  return path.join(dataDir(), 'token.json');
+}
+
+function envCredentials(): { client_id: string; client_secret: string } | undefined {
+  const id = process.env.GOOGLE_CLIENT_ID;
+  const secret = process.env.GOOGLE_CLIENT_SECRET;
+  return id && secret ? { client_id: id, client_secret: secret } : undefined;
+}
 
 function makeClient() {
-  if (!fs.existsSync(CRED_FILE)) {
-    throw new Error(`Missing ${CRED_FILE}. Download your OAuth "Desktop app" credentials from Google Cloud and save them there.`);
+  const env = envCredentials();
+  if (env) return new google.auth.OAuth2(env.client_id, env.client_secret, REDIRECT);
+
+  const file = credFile();
+  if (!fs.existsSync(file)) {
+    throw new Error(
+      `No Google credentials. Save your OAuth "Desktop app" JSON to ${file}, ` +
+        `or set GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET.`
+    );
   }
-  const raw = JSON.parse(fs.readFileSync(CRED_FILE, 'utf8'));
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
   const c = raw.installed ?? raw.web;
   if (!c) throw new Error('credentials.json has no "installed" or "web" section');
   return new google.auth.OAuth2(c.client_id, c.client_secret, REDIRECT);
 }
 
+/** Credentials file present (or set through env)? Does not prove a token exists. */
+export function hasCredentials(): boolean {
+  return Boolean(envCredentials()) || fs.existsSync(credFile());
+}
+
+export function hasToken(): boolean {
+  return Boolean(process.env.GOOGLE_REFRESH_TOKEN) || fs.existsSync(tokenFile());
+}
+
 export function getAuthedClient() {
   const client = makeClient();
-  if (!fs.existsSync(TOKEN_FILE)) throw new Error('Not logged in yet. Run: gmail-bucket auth');
-  client.setCredentials(JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8')));
+
+  // Headless / hosted mode: a refresh token supplied through the environment.
+  const refresh = process.env.GOOGLE_REFRESH_TOKEN;
+  if (refresh) {
+    client.setCredentials({ refresh_token: refresh, access_token: process.env.GOOGLE_ACCESS_TOKEN });
+    return client;
+  }
+
+  const file = tokenFile();
+  if (!fs.existsSync(file)) throw new Error('Not logged in yet. Run: npm run auth');
+  client.setCredentials(JSON.parse(fs.readFileSync(file, 'utf8')));
   client.on('tokens', (t) => {
-    const prev = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
-    fs.writeFileSync(TOKEN_FILE, JSON.stringify({ ...prev, ...t }, null, 2), { mode: 0o600 });
+    const prev = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...prev, ...t }, null, 2), { mode: 0o600 });
   });
   return client;
 }
@@ -35,7 +77,7 @@ export function getAuthedClient() {
 export async function login(): Promise<void> {
   const client = makeClient();
   const url = client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: SCOPES });
-  console.log('Open this URL in your browser and approve access:\n\n' + url + '\n');
+  console.log('\nOpen this URL in your browser and approve access:\n\n' + url + '\n');
 
   const code = await new Promise<string>((resolve, reject) => {
     const server = http.createServer((req, res) => {
@@ -49,14 +91,23 @@ export async function login(): Promise<void> {
         resolve(c);
       } else {
         res.end('Waiting for authorization...');
-        if (err) { server.close(); reject(new Error(err)); }
+        if (err) {
+          server.close();
+          reject(new Error(err));
+        }
       }
     });
     server.listen(PORT);
   });
 
   const { tokens } = await client.getToken(code);
-  fs.mkdirSync(DIR, { recursive: true });
-  fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2), { mode: 0o600 });
-  console.log(`Saved token to ${TOKEN_FILE}`);
+  fs.mkdirSync(dataDir(), { recursive: true });
+  fs.writeFileSync(tokenFile(), JSON.stringify(tokens, null, 2), { mode: 0o600 });
+  console.log(`Saved token to ${tokenFile()}`);
+  if (!tokens.refresh_token) {
+    console.log(
+      'Note: Google did not return a refresh token. If it expires in 7 days, run "npm run auth" again ' +
+        'or set GOOGLE_REFRESH_TOKEN in .env.'
+    );
+  }
 }

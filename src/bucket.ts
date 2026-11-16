@@ -1,6 +1,7 @@
 import { google, gmail_v1 } from 'googleapis';
 import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
+import { BASE_BUCKET, assertBucketName } from './layout.js';
 
 type Auth = InstanceType<typeof google.auth.OAuth2>;
 
@@ -130,9 +131,9 @@ export class GmailBucket {
   // ---------- buckets ----------
 
   private labelName(bucket: string) {
-    if (!/^[a-z0-9][a-z0-9._-]{0,62}$/.test(bucket)) {
-      throw new Error('Bucket names: lowercase letters, numbers, dot, dash, underscore (max 63 chars)');
-    }
+    // The base "folder" is the root label itself; everything else is a child label.
+    if (bucket === BASE_BUCKET) return this.root;
+    assertBucketName(bucket);
     return `${this.root}/${bucket}`;
   }
 
@@ -178,6 +179,7 @@ export class GmailBucket {
   }
 
   async deleteBucket(bucket: string, opts: { force?: boolean } = {}): Promise<void> {
+    assertBucketName(bucket);
     const id = await this.requireLabel(bucket);
     const ids = await this.listIds(id);
     if (ids.length && !opts.force) throw new Error('BucketNotEmpty (pass force: true to delete anyway)');
