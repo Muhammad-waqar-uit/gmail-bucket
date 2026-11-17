@@ -229,6 +229,55 @@ npm run test:drive      # DriveStore against an in-memory fake Drive client (25 
 npm run typecheck
 ```
 
+## Releasing
+
+Publishing is tag-driven: `.github/workflows/release.yml` runs on a `v*` tag and publishes with
+provenance. The order below matters — the library has to be on npm before anything may depend on it.
+
+1. **Log in.** `npm login` on the machine that will publish, and add an npm **Automation** token
+   (not one that requires an OTP — CI cannot answer a prompt) as the repository secret `NPM_TOKEN`.
+
+2. **Publish 2.2.0.** The tag must match `package.json` exactly, or the workflow stops before
+   uploading:
+
+   ```bash
+   git tag v2.2.0 && git push origin v2.2.0
+   ```
+
+   The job installs with `npm ci`, runs `npm run typecheck` and `npm run test:drive`, checks
+   `v$version == package.json`, then runs `npm publish --provenance --access public`. From a clean
+   checkout of the tag, that same command does it by hand.
+
+   A tag can only publish a commit that contains this workflow. If `v2.2.0` already exists, re-point
+   it at such a commit (`git tag -f v2.2.0 <sha> && git push -f origin v2.2.0`) or release `2.2.1`
+   instead.
+
+3. **Verify the tarball, not just the tag.** A git install builds through `prepare`; the published
+   tarball builds through `prepack`, so only this proves the artifact matches what you tested:
+
+   ```bash
+   npm view gmail-bucket dist-tags          # latest must be 2.2.0
+   cd "$(mktemp -d)" && npm init -y >/dev/null
+   npm install gmail-bucket@2.2.0
+   ls node_modules/gmail-bucket/dist/index.js
+   node -e "import('gmail-bucket').then(m => console.log(Object.keys(m).sort().join(' ')))"
+   ```
+
+   The export list must include `createStore`, `DriveStore`, `GmailBucket`, `MemoryStore` and
+   `serve` — 1.0.0 has none of them, which is the trap this order exists to avoid.
+
+4. **Then move the POC to the published package.** In
+   [gmail-bucket-poc](https://github.com/Muhammad-waqar-uit/gmail-bucket-poc), change the dependency
+   from `github:Muhammad-waqar-uit/gmail-bucket#v2.2.0` to `^2.2.0`, run `npm install` to replace the
+   git entry in the lockfile, then re-run `npm run typecheck`, `npm run test:drive` and
+   `npm run test:e2e`. Doing this before step 2 fails with `ETARGET`: no 2.x is on the registry yet.
+
+5. **Fix the docs that still install from the git tag.** The same change updates the four places that
+   still point readers at the tag: `README.md` (the pin paragraph), `examples/nextjs/README.md` (the
+   install line), `docs/ARCHITECTURE.md` (the `v2.2.0` note) and the header comment in
+   `scripts/drive-mock-test.mjs`. The vendored suite still has to be re-copied whenever the pinned
+   tag changes.
+
 ## Related
 
 - **[gmail-bucket-poc](https://github.com/Muhammad-waqar-uit/gmail-bucket-poc)** — React UI + REST demo
