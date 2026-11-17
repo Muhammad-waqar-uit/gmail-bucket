@@ -57,14 +57,22 @@ a readable message instead of falling back.
 3. **OAuth consent screen** → External → add your Google address under **Test users**.
 4. **Credentials → Create credentials → OAuth client ID → Desktop app** → download the JSON.
 5. Save it as `~/.gmail-bucket/credentials.json` (Windows: `%USERPROFILE%\.gmail-bucket\credentials.json`).
-6. Log in once — `drive` and `gmail.modify` scopes in one token:
+6. Log in once. The default asks for **`drive.file` only** — the app can then touch only files it created,
+   never the rest of your Drive, and never your mailbox:
 
 ```bash
-gmail-bucket auth
+gmail-bucket auth            # Drive only, drive.file scope (default)
+gmail-bucket auth --gmail    # mailbox only, gmail.modify  (Gmail backend)
+gmail-bucket auth --all      # both scopes in one token
 ```
 
 The Drive base folder is created in **My Drive** on first use. Point `DRIVE_ROOT_FOLDER_ID` at a folder you
 already have, or set `DRIVE_CREATE_ROOT=0` to forbid creation.
+
+> **A pre-existing folder needs the wider scope.** `drive.file` only sees files the app created, so pointing
+> `DRIVE_ROOT_FOLDER_ID` at a folder you made by hand requires `DRIVE_SCOPE=full` (the old `drive` scope) and
+> a fresh `auth`. An app-created base folder needs no extra scope. Gmail has no per-label scope, so the Gmail
+> backend always asks for the whole mailbox — another reason Drive is the recommended backend.
 
 > While the consent screen is in **Testing**, Google expires refresh tokens after 7 days. Re-run `auth`
 > or publish the app (unverified is fine for personal use).
@@ -176,6 +184,7 @@ Set `GMAIL_BUCKET_TOKEN` (or `serve(..., { token })`) to require `Authorization:
 | `DRIVE_ROOT_FOLDER_ID` | — | existing Drive folder to use as the base |
 | `DRIVE_ROOT_FOLDER_NAME` | `bucket-base` | base folder name under My Drive |
 | `DRIVE_CREATE_ROOT` | `1` | `0` = fail instead of creating the base |
+| `DRIVE_SCOPE` | `file` | `file` = `drive.file` (app-created files only); `full` = `drive` (needed for a pre-existing base folder) |
 | `GMAIL_BUCKET_ROOT_LABEL` | `gmail-bucket` | Gmail root label |
 | `GMAIL_BUCKET_DIR` | `~/.gmail-bucket` | location of `credentials.json` / `token.json` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | — | alternative to the credentials file |

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { login } from './auth.js';
+import { login, type AuthBackend } from './auth.js';
 import { createStore } from './store.js';
 import { serve } from './server.js';
 
 const HELP = `gmail-bucket <command>
 
-  auth                          log in with Google (one time)
+  auth [--drive|--gmail|--all]  log in (default: Drive only, drive.file scope)
   status                        show the active backend and base folder
   serve [port]                  start the REST server (default 4566 / PORT)
   mb <bucket>                   make bucket
@@ -18,6 +18,7 @@ const HELP = `gmail-bucket <command>
 
 Bucket "_root" means the base folder itself (objects outside any bucket).
 Backend is chosen by STORAGE=auto|drive|gmail|memory (default auto).
+Drive uses the drive.file scope; DRIVE_SCOPE=full widens it (needed for a pre-existing base folder).
 `;
 
 const TYPES: Record<string, string> = {
@@ -43,10 +44,18 @@ const contentTypeFor = (file: string) =>
 
 const mib = (n: number) => (n / (1024 * 1024)).toFixed(1) + ' MB';
 
+/** Which scopes to ask for: no flag = Drive only, `--gmail` = mailbox only, `--all` = both. */
+function authBackends(args: string[]): AuthBackend[] {
+  if (args.includes('--all') || (args.includes('--drive') && args.includes('--gmail'))) {
+    return ['drive', 'gmail'];
+  }
+  return args.includes('--gmail') ? ['gmail'] : ['drive'];
+}
+
 async function main() {
   const [cmd, ...a] = process.argv.slice(2);
   if (!cmd || cmd === 'help' || cmd === '--help') return console.log(HELP);
-  if (cmd === 'auth') return login();
+  if (cmd === 'auth') return login(authBackends(a));
 
   const info = await createStore();
   const store = info.store;

@@ -18,7 +18,14 @@ export {
   getAuthedClient,
   login,
   SCOPES,
+  driveScope,
+  scopesFor,
+  tokenScopes,
+  DRIVE_SCOPE_FILE,
+  DRIVE_SCOPE_FULL,
+  GMAIL_SCOPE,
 } from './auth.js';
+export type { AuthBackend } from './auth.js';
 
 export { serve, createServer } from './server.js';
 export type { ServerOptions, ServeOptions } from './server.js';

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.3.0
+
+### Changed
+
+- **Drive now uses the `drive.file` scope by default.** The token can only reach files this app created,
+  instead of every file in the account. Existing tokens keep working, since the old `drive` scope is wider.
+- **`login()` takes the backends to authorize** and defaults to `["drive"]`; the CLI accepts
+  `auth [--drive|--gmail|--all]`. A Drive-only login never asks for `gmail.modify`.
+- `createStore()` now names the login command a missing backend needs, and explains a pre-existing
+  `DRIVE_ROOT_FOLDER_ID` under `drive.file` instead of surfacing a bare "not found".
+
+### Added
+
+- `DRIVE_SCOPE=full` escape hatch: requests the broad `drive` scope, required for a base folder the app did
+  not create.
+- `driveScope()`, `scopesFor(backends)` and `tokenScopes()` exports.
+
 ## 2.2.0
 
 ### Added

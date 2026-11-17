@@ -3,7 +3,17 @@ import { GmailBucket } from './bucket.js';
 import type { ObjectInfo, PutOptions } from './bucket.js';
 import { DriveStore } from './drive.js';
 import { BASE_BUCKET, assertBucketName } from './layout.js';
-import { getAuthedClient, hasCredentials, hasToken, credFile, tokenFile } from './auth.js';
+import {
+  DRIVE_SCOPE_FILE,
+  GMAIL_SCOPE,
+  driveScope,
+  getAuthedClient,
+  hasCredentials,
+  hasToken,
+  credFile,
+  tokenFile,
+  tokenScopes,
+} from './auth.js';
 
 export type { ObjectInfo, PutOptions };
 export { BASE_BUCKET };
@@ -162,6 +172,23 @@ function memoryInfo(reason: string): StoreInfo {
   };
 }
 
+/**
+ * `drive.file` cannot see a folder the app did not create, so a pre-existing DRIVE_ROOT_FOLDER_ID
+ * fails with a bare "not found". Explain the escape hatch instead.
+ */
+function explainDriveFailure(message: string): string {
+  const fileScope = driveScope() === DRIVE_SCOPE_FILE;
+  const usesExistingRoot = Boolean(env('DRIVE_ROOT_FOLDER_ID'));
+  if (fileScope && usesExistingRoot && /not found|404|cannot find/i.test(message)) {
+    return (
+      `${message} — DRIVE_SCOPE=file only reaches files this app created, so a pre-existing ` +
+      `DRIVE_ROOT_FOLDER_ID is invisible. Set DRIVE_SCOPE=full and re-run "npm run auth", ` +
+      `or unset DRIVE_ROOT_FOLDER_ID to use an app-created base folder`
+    );
+  }
+  return message;
+}
+
 async function openDrive(): Promise<StoreInfo> {
   const store = new DriveStore(getAuthedClient(), {
     rootFolderId: env('DRIVE_ROOT_FOLDER_ID'),
@@ -182,6 +209,12 @@ async function openDrive(): Promise<StoreInfo> {
 }
 
 async function openGmail(): Promise<StoreInfo> {
+  const granted = tokenScopes();
+  if (granted && !granted.includes(GMAIL_SCOPE)) {
+    throw new Error(
+      `the saved token has no Gmail scope — run "npm run auth --gmail" to grant ${GMAIL_SCOPE}`
+    );
+  }
   const rootLabel = env('GMAIL_BUCKET_ROOT_LABEL') ?? 'gmail-bucket';
   const store = new GmailBucket(getAuthedClient(), { rootLabel });
   await store.listBuckets();
@@ -217,7 +250,7 @@ export async function createStore(): Promise<StoreInfo> {
 
   if (!hasToken()) {
     if (want !== 'auto') {
-      throw new Error(`STORAGE=${want} but not logged in. Run "npm run auth" (token: ${tokenFile()}).`);
+      throw new Error(`STORAGE=${want} but not logged in. Run "npm run auth --${want}" (token: ${tokenFile()}).`);
     }
     return memoryInfo(`In-memory store: no token yet at ${tokenFile()} (run "npm run auth")`);
   }
@@ -229,9 +262,9 @@ export async function createStore(): Promise<StoreInfo> {
       if (mode === 'gmail') return await openGmail();
       throw new Error(`STORAGE=${want} is not a known backend (use drive, gmail or memory)`);
     } catch (e: any) {
-      const msg = String(e?.message ?? e);
+      const msg = explainDriveFailure(String(e?.message ?? e));
       if (/insufficient|scope|permission/i.test(msg)) {
-        hints.push(`${mode}: ${msg} — re-run "npm run auth" to grant both Gmail and Drive scopes`);
+        hints.push(`${mode}: ${msg} — re-run "npm run auth --${mode}" for a token with that scope`);
       } else {
         hints.push(`${mode}: ${msg}`);
       }

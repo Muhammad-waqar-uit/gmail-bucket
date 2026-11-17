@@ -1,6 +1,6 @@
 {
   "name": "gmail-bucket",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Use Google Drive or Gmail as a tiny S3-style object store: a base folder, buckets as folders, nested keys. Demo and MVP use only.",
   "type": "module",
   "main": "dist/index.js",
@@ -26,7 +26,8 @@
     "typecheck": "tsc --noEmit",
     "test:drive": "npm run build && node test/drive-mock-test.mjs",
     "auth": "node dist/cli.js auth",
-    "serve": "node dist/cli.js serve"
+    "serve": "node dist/cli.js serve",
+    "test:scopes": "npm run build && node test/auth-scopes.mjs"
   },
   "engines": {
     "node": ">=18"
