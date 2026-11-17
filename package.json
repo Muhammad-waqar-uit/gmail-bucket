@@ -25,6 +25,7 @@
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test:drive": "npm run build && node test/drive-mock-test.mjs",
+    "test:server": "npm run build && node test/server-headers.mjs",
     "auth": "node dist/cli.js auth",
     "serve": "node dist/cli.js serve",
     "test:scopes": "npm run build && node test/auth-scopes.mjs"

@@ -17,6 +17,15 @@
   not create.
 - `driveScope()`, `scopesFor(backends)` and `tokenScopes()` exports.
 
+### Security
+
+- Object responses no longer trust the uploader's `Content-Type`: they always send
+  `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`, render inline
+  only for plain image types, and serve everything else (HTML, SVG, …) as `Content-Disposition: attachment`.
+  A document uploaded to a bucket can no longer execute on the API origin. Content types are normalised on
+  upload (parameters other than a well-formed charset are dropped), and `?download=1` still forces a
+  download.
+
 ## 2.2.0
 
 ### Added

@@ -172,6 +172,11 @@ DELETE /api/buckets/:bucket/objects/:key   delete
 ```
 
 Plain JSON REST — not the S3 wire protocol, so the AWS SDK cannot talk to it.
+
+Object responses are hardened: `X-Content-Type-Options: nosniff` and a `sandbox` CSP are always sent, and
+only plain images (`image/png`, `jpeg`, `gif`, `webp`, `avif`, `bmp`, `x-icon`) are served `inline` — HTML,
+SVG and everything else become attachments, so an uploaded document cannot run on the API origin.
+`?download=1` forces an attachment for any type.
 Set `GMAIL_BUCKET_TOKEN` (or `serve(..., { token })`) to require `Authorization: Bearer <token>`.
 
 ## Configuration

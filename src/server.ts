@@ -6,6 +6,64 @@ import { BASE_BUCKET } from './layout.js';
 
 const MAX_BODY = 100 * 1024 * 1024;
 
+/**
+ * Types that may render inline from the API origin. SVG is deliberately absent: it can carry script,
+ * and uploads choose their own content type.
+ */
+const INLINE_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'image/bmp',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+]);
+
+/** The bare `type/subtype` of a content type, lowercased. */
+function baseType(value: string): string {
+  return value.split(';')[0].trim().toLowerCase();
+}
+
+/**
+ * Uploads control their own content type, so never echo it verbatim: keep a plain `type/subtype` plus a
+ * well-formed charset and drop everything else.
+ */
+function safeContentType(raw: string | undefined): string {
+  const [type, ...params] = String(raw ?? '').split(';');
+  const bare = type.trim().toLowerCase();
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(bare)) return 'application/octet-stream';
+  const charset = params.map((p) => p.trim().toLowerCase()).find((p) => /^charset=[a-z0-9._-]+$/.test(p));
+  return charset ? `${bare}; ${charset}` : bare;
+}
+
+/** A download name from a key: no quotes, no CR/LF, no path segments. */
+function filenameFor(key: string): string {
+  return (key.split('/').pop() || 'download').replace(/[\u0000-\u001f"\\]/g, '_');
+}
+
+/**
+ * Headers for a stored object. `nosniff` stops the browser from reinterpreting the body, and only
+ * known-safe image types may render inline -- everything else is a download.
+ */
+function objectHeaders(
+  key: string,
+  obj: { contentType: string; etag: string; lastModified: Date },
+  forceDownload: boolean
+): Record<string, string> {
+  const type = safeContentType(obj.contentType);
+  const inline = !forceDownload && INLINE_TYPES.has(baseType(type));
+  return {
+    'content-type': type,
+    etag: `"${obj.etag}"`,
+    'last-modified': obj.lastModified.toUTCString(),
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': "default-src 'none'; sandbox",
+    'content-disposition': inline ? 'inline' : `attachment; filename="${filenameFor(key)}"`,
+  };
+}
+
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -137,7 +195,8 @@ export function createServer(info: StoreInfo, opts: ServerOptions = {}): http.Se
         'access-control-allow-origin': '*',
         'access-control-allow-headers': '*',
         'access-control-allow-methods': 'GET,PUT,DELETE,HEAD,OPTIONS',
-        'access-control-expose-headers': 'ETag, Content-Length, Content-Disposition',
+        'access-control-expose-headers':
+          'ETag, Content-Length, Content-Disposition, X-Content-Type-Options',
         'cache-control': 'no-store',
         ...(isBuf ? {} : body === undefined ? {} : { 'content-type': 'application/json' }),
         ...headers,
@@ -231,7 +290,7 @@ export function createServer(info: StoreInfo, opts: ServerOptions = {}): http.Se
         }
         const body = await readBody(req);
         const r = await store.putObject(bucket, key, body, {
-          contentType: req.headers['content-type'] ?? 'application/octet-stream',
+          contentType: safeContentType(req.headers['content-type']),
           metadata,
         });
         return send(200, r, { etag: `"${r.etag}"` });
@@ -250,26 +309,17 @@ export function createServer(info: StoreInfo, opts: ServerOptions = {}): http.Se
       if (req.method === 'HEAD') {
         const obj = await store.headObject(bucket, key);
         return send(200, undefined, {
-          'content-type': obj.contentType,
+          ...objectHeaders(key, obj, url.searchParams.get('download') === '1'),
           'content-length': String(obj.size),
-          etag: `"${obj.etag}"`,
-          'last-modified': obj.lastModified.toUTCString(),
         });
       }
 
       if (req.method === 'GET') {
         const { body, info: obj } = await store.getObject(bucket, key);
-        const headers: Record<string, string> = {
-          'content-type': obj.contentType,
+        return send(200, body, {
+          ...objectHeaders(key, obj, url.searchParams.get('download') === '1'),
           'content-length': String(body.length),
-          etag: `"${obj.etag}"`,
-          'last-modified': obj.lastModified.toUTCString(),
-        };
-        if (url.searchParams.get('download') === '1') {
-          const name = key.split('/').pop() || 'download';
-          headers['content-disposition'] = `attachment; filename="${name.replace(/["\\]/g, '_')}"`;
-        }
-        return send(200, body, headers);
+        });
       }
 
       if (req.method === 'DELETE') {
